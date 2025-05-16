@@ -26,6 +26,7 @@ class Chess {
 	string m_msg = "\n";
 	string m_errorMsg = "\n";
 	int m_codeResponse;
+	string m_best;
 
 	void clear() const;
 	void setFrames();
@@ -47,5 +48,5 @@ public:
 	string getInput();
 	void setCodeResponse(int codeResponse);
 	void displayBoard() const;
-	void playGame();
+	void bestMove(const string& recommendations);
 };

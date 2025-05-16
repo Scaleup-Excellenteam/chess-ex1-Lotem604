@@ -180,10 +180,11 @@ void Chess::show() const
 // clear screen and print the board and the relevant msg 
 void Chess::displayBoard() const
 {
-	clear();
-	show();
-	cout << m_msg<< m_errorMsg;
-	
+    clear();
+    show();
+    cout << m_msg<< m_errorMsg;
+    cout << m_best << endl;
+
 }
 // print the who is turn before getting input 
 void Chess::showAskInput() const 
@@ -329,55 +330,7 @@ void Chess::setCodeResponse(int codeResponse)
 		((CR_OPPONENT_CHECK == codeResponse) || (codeResponse == CR_MOVE_OK)))
 		m_codeResponse = codeResponse;
 }
-
-void Chess::playGame() {
-	string boardStr = "RNBQKBNRPPPPPPPP################################pppppppprnbqkbnr";
-    
-    Chess chess(boardStr);
-    Board board(boardStr);
-
-    bool isWhiteTurn = true; 
-    string res = chess.getInput();
-	while (res != "exit") {
-        int codeResponse = 0;
-
-        int srcRow = res[0] - 'a';
-        int srcCol = res[1] - '1';
-        int destRow = res[2] - 'a';
-        int destCol = res[3] - '1';
-
-        Piece* piece = board.getPiece(srcRow, srcCol);
-        Piece* target = board.getPiece(destRow, destCol);
-
-        if (!piece)
-            codeResponse = CR_NO_PIECE;
-        else if (piece->isWhitePiece() != isWhiteTurn)
-            codeResponse = CR_WRONG_TURN;
-        else if (target && target->isWhitePiece() == piece->isWhitePiece())
-            codeResponse = CR_SAME_COLOR;
-        else if (!piece->isValidMove(srcRow, srcCol, destRow, destCol, board.getBoard()))
-            codeResponse = CR_INVALID_MOVE;
-        else {
-            Piece* temp = board.getPiece(destRow, destCol);
-            board.setPiece(destRow, destCol, piece);
-            board.setPiece(srcRow, srcCol, nullptr);
-            bool isCheck = board.isCheck(isWhiteTurn);
-            board.setPiece(srcRow, srcCol, piece);
-            board.setPiece(destRow, destCol, temp);
-
-            if (isCheck)
-                codeResponse = CR_SELF_CHECK;
-            else {
-                board.movePiece(srcRow, srcCol, destRow, destCol);
-                bool causesCheck = board.isCheck(!isWhiteTurn);
-                codeResponse = causesCheck ? CR_OPPONENT_CHECK : CR_MOVE_OK;
-                isWhiteTurn = !isWhiteTurn;
-            }
-        }
-
-        chess.setCodeResponse(codeResponse);
-        res = chess.getInput();
-    }
-
-    cout << "\nExiting" << endl;
+void Chess::bestMove(const string& recommendations)
+{
+    m_best = recommendations;
 }
