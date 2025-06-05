@@ -19,6 +19,38 @@ int getPieceValue(char piece) {
         default: return 0;
     }
 }
+Board::Board(const Board& other) {
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            if (other.board[i][j] != nullptr) {
+                board[i][j] = other.board[i][j]->clone();
+            } else {
+                board[i][j] = nullptr;
+            }
+        }
+    }
+}
+
+Board& Board::operator=(const Board& other) {
+    if (this != &other) {
+        for (int i = 0; i < 8; ++i) {
+            for (int j = 0; j < 8; ++j) {
+                delete board[i][j];
+                board[i][j] = nullptr;
+            }
+        }
+        for (int i = 0; i < 8; ++i) {
+            for (int j = 0; j < 8; ++j) {
+                if (other.board[i][j] != nullptr) {
+                    board[i][j] = other.board[i][j]->clone();
+                } else {
+                    board[i][j] = nullptr;
+                }
+            }
+        }
+    }
+    return *this;
+}
 
 Board::Board(const string& start) {
     // Initialize board based on the start string
@@ -244,59 +276,157 @@ int Board::evaluateMove(const Move& move, bool isWhiteTurn) const {
     return score;
 }
 
-int Board::minimax(int depth, bool isWhiteTurn, int alpha, int beta) const {
-    if (depth >= MAX_DEPTH) {
-        return 0; // Stop at max depth
+int Board::minimax(Board& cur, int depth, bool isWhiteTurn, int alpha, int beta) {
+    if (depth <= 0) {
+        return 0;
     }
 
-    PriorityQueue<Move, MoveComparator> pq(5);  // Max size 5
-    findBestMoves(isWhiteTurn, pq);
-
+    int bestScore = isWhiteTurn ? -1000000 : 1000000;
+    PriorityQueue<Move, MoveComparator> pq(64);
+    cur.findBestMoves(isWhiteTurn, pq);
     if (pq.isEmpty()) {
         return 0;
     }
 
-    int bestScore = (isWhiteTurn ? -100000 : 100000);
     while (!pq.isEmpty()) {
-        Move move = pq.poll();
-        Piece* tempBoard[8][8] = {nullptr};
-        for (int i = 0; i < 8; ++i) {
-            for (int j = 0; j < 8; ++j) {
-                if (board[i][j]) {
-                    tempBoard[i][j] = board[i][j]->clone();
-                }
-            }
+        Move mv = pq.poll();
+        Board next = cur;
+        try {
+            next.movePiece(mv.getSrcRow(), mv.getSrcCol(), mv.getDestRow(), mv.getDestCol());
+        } catch (...) {
+            continue;
         }
-        tempBoard[move.getDestRow()][move.getDestCol()] = tempBoard[move.getSrcRow()][move.getSrcCol()];
-        tempBoard[move.getSrcRow()][move.getSrcCol()] = nullptr;
-        int score = evaluateMove(move, isWhiteTurn);
+        if (next.isCheck(isWhiteTurn)) {
+            continue;
+        }
+
+        int score;
+        if (depth - 1 <= 0) {
+            score = next.evaluateMove(mv, isWhiteTurn);
+        } else {
+            score = minimax(next, depth - 1, !isWhiteTurn, alpha, beta);
+        }
+
+        Piece* capturedPiece = cur.getPiece(mv.getDestRow(), mv.getDestCol());
+        if (capturedPiece) {
+            score += getPieceValue(capturedPiece->getSymbol());
+        }
 
         if (isWhiteTurn) {
             bestScore = std::max(bestScore, score);
-            alpha = std::max(alpha, score);
+            alpha     = std::max(alpha, score);
         } else {
             bestScore = std::min(bestScore, score);
-            beta = std::min(beta, score);
-        }
-
-        // Clean up the temporary board
-        for (int i = 0; i < 8; ++i) {
-            for (int j = 0; j < 8; ++j) {
-                delete tempBoard[i][j];
-            }
+            beta      = std::min(beta, score);
         }
 
         if (beta <= alpha) {
-            break;  // Alpha-beta pruning
+            break;
         }
     }
 
     return bestScore;
 }
 
-Move Board::getBestMove(bool isWhiteTurn) const {
-    PriorityQueue<Move, MoveComparator> pq(5);  // Max size 5
-    findBestMoves(isWhiteTurn, pq);
+Move Board::getBestMoveWithPool(bool isWhiteTurn, ThreadPool& pool, int depth, int threshold) const {
+    std::vector<std::pair<int,int>> piecePositions;
+    for (int srcRow = 0; srcRow < 8; ++srcRow) {
+        for (int srcCol = 0; srcCol < 8; ++srcCol) {
+            Piece* piece = board[srcRow][srcCol];
+            if (piece && piece->isWhitePiece() == isWhiteTurn) {
+                piecePositions.emplace_back(srcRow, srcCol);
+            }
+        }
+    }
+    if (piecePositions.empty()) {
+        throw std::runtime_error("No valid pieces to move");
+    }
+
+    PriorityQueue<Move, MoveComparator> pq(piecePositions.size());
+    std::mutex                    pqMutex;
+    std::atomic<bool>             stopFlag(false);
+    std::atomic<int>              tasksLeft((int)piecePositions.size());
+    std::atomic<bool>             earlyFound(false);
+    Move                          earlyMove(0,0,0,0,' ');
+
+    for (auto& pos : piecePositions) {
+        int srcRow = pos.first;
+        int srcCol = pos.second;
+
+        pool.enqueueTask([=, &pq, &pqMutex, &tasksLeft, &stopFlag, &earlyMove, &earlyFound]() {
+            Board tempBoard = *this;
+            Piece* piece    = tempBoard.getPiece(srcRow, srcCol);
+
+            int  bestScore            = -1000000;
+            Move bestMoveForThisPiece(srcRow, srcCol, srcRow, srcCol, piece->getSymbol());
+            bool foundAny             = false;
+
+            for (int destRow = 0; destRow < 8 && !stopFlag.load(); ++destRow) {
+                for (int destCol = 0; destCol < 8 && !stopFlag.load(); ++destCol) {
+                    if (srcRow == destRow && srcCol == destCol) continue;
+                    if (!piece->isValidMove(srcRow, srcCol, destRow, destCol, tempBoard.board)) {
+                        continue;
+                    }
+
+                    Board trialBoard = tempBoard;
+                    try {
+                        trialBoard.movePiece(srcRow, srcCol, destRow, destCol);
+                    } catch (...) {
+                        continue;
+                    }
+                    if (trialBoard.isCheck(isWhiteTurn)) {
+                        continue;
+                    }
+
+                    Move candidate(srcRow, srcCol, destRow, destCol, piece->getSymbol());
+                    int  score;
+                    if (depth <= 1) {
+                        score = trialBoard.evaluateMove(candidate, isWhiteTurn);
+                    } else {
+                        score = trialBoard.minimax(trialBoard, depth - 1, !isWhiteTurn, -1000000, 1000000);
+                        Piece* capturedPiece = board[destRow][destCol];
+                        if (capturedPiece) {
+                            score += getPieceValue(capturedPiece->getSymbol());
+                        }
+                    }
+
+                    candidate.setScore(score);
+
+                    if (score >= threshold && !stopFlag.exchange(true)) {
+                        {
+                            std::lock_guard<std::mutex> lock(pqMutex);
+                            pq.push(candidate);
+                        }
+                        earlyMove = candidate;
+                        earlyFound = true;
+                        break;
+                    }
+
+                    if (!foundAny || score > bestScore) {
+                        bestScore            = score;
+                        bestMoveForThisPiece = candidate;
+                        foundAny             = true;
+                    }
+                }
+                if (stopFlag.load()) break;
+            }
+
+            if (!stopFlag.load() && foundAny) {
+                std::lock_guard<std::mutex> lock(pqMutex);
+                pq.push(bestMoveForThisPiece);
+            }
+
+            tasksLeft--;
+        });
+    }
+
+    while (tasksLeft.load() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    if (earlyFound.load()) {
+        return earlyMove;
+    }
 
     if (!pq.isEmpty()) {
         return pq.poll();
@@ -304,6 +434,20 @@ Move Board::getBestMove(bool isWhiteTurn) const {
 
     throw std::runtime_error("No valid moves found");
 }
+
+
+
+// Move Board::getBestMove(bool isWhiteTurn) const {
+//     PriorityQueue<Move, MoveComparator> pq(5);  // Max size 5
+//     findBestMoves(isWhiteTurn, pq);
+
+//     if (!pq.isEmpty()) {
+//         return pq.poll();
+//     }
+
+//     throw std::runtime_error("No valid moves found");
+// }
+
 
 bool Board::isCheck(Piece* const board[8][8], bool isWhiteTurn) const {
     // Find the king

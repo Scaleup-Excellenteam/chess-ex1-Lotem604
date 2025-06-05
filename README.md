@@ -153,3 +153,38 @@ You are required to submit each exercise using "GitHub Classroom". To do this, y
 <p align="center">
   <img src="./img/excellenteam.png" alt="Excellenteam">
 </p>
+
+
+## Algorithm & Multithreading Design Summary
+
+### Minimax Logic
+The system uses a Minimax algorithm with configurable depth. The evaluation function scores each move based on:
+- Piece type and value
+- Check/mate detection
+- Capture opportunity
+
+### Threaded Move Evaluation
+Each piece of the current player is handled by a dedicated task submitted to a ThreadPool.
+Each task checks all possible legal moves for that piece and evaluates them individually.
+All scores are pushed to a shared `PriorityQueue`.
+
+### Synchronization
+We used multiple synchronization tools:
+- `std::mutex` to protect access to the shared priority queue.
+- `std::atomic<bool> stopFlag` to support early termination if a good move is found.
+- `std::atomic<int> tasksLeft` to track how many tasks are still running.
+- `std::atomic<bool> earlyFound` and `Move earlyMove` to record the first high-quality move that meets/exceeds the threshold.
+
+### Benchmarking
+Performance is measured using `std::chrono::high_resolution_clock`, before and after the 8-move auto game run.
+
+### Runtime Comparison
+
+At first glance, this might seem surprising — one might expect that more threads would lead to faster execution. However, these results are consistent with the nature of the task and system behavior:
+
+- **Thread overhead**: Using multiple threads adds extra work to manage them (like locking and waking up threads). When the task is small — like a short game — this extra work can slow things down.
+
+- **Sequential is simpler**: When using 0 threads, the program runs everything in order, without the need to manage threads — making it the fastest in small cases.
+- **Too many threads can slow things down**: Using 8 threads sounds like it should help, but it can actually hurt performance. The computer has to switch between all the threads and share its resources, which takes time.
+
+This behavior is expected and fits with the goal of optimizing performance in the assignment.

@@ -14,6 +14,8 @@ add_executable(Chess
     src/Piece.cpp
     src/Queen.cpp
     src/Rook.cpp
+    src/ThreadPool.cpp
+    src/AutoGameRunner.cpp
 )
 
 target_include_directories(Chess PRIVATE include)
