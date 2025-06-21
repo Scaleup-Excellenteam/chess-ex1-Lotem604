@@ -437,16 +437,16 @@ Move Board::getBestMoveWithPool(bool isWhiteTurn, ThreadPool& pool, int depth, i
 
 
 
-// Move Board::getBestMove(bool isWhiteTurn) const {
-//     PriorityQueue<Move, MoveComparator> pq(5);  // Max size 5
-//     findBestMoves(isWhiteTurn, pq);
+Move Board::getBestMove(bool isWhiteTurn) const {
+    PriorityQueue<Move, MoveComparator> pq(5);  // Max size 5
+    findBestMoves(isWhiteTurn, pq);
 
-//     if (!pq.isEmpty()) {
-//         return pq.poll();
-//     }
+    if (!pq.isEmpty()) {
+        return pq.poll();
+    }
 
-//     throw std::runtime_error("No valid moves found");
-// }
+    throw std::runtime_error("No valid moves found");
+}
 
 
 bool Board::isCheck(Piece* const board[8][8], bool isWhiteTurn) const {
@@ -513,4 +513,29 @@ bool Board::isCheckmate(Piece* const board[8][8], bool isWhiteTurn) const {
         }
     }
     return true; // Checkmate if no valid moves found
+}
+bool Board::hasAnyLegalMove(bool isWhiteTurn) const {
+    for (int srcRow = 0; srcRow < 8; ++srcRow) {
+        for (int srcCol = 0; srcCol < 8; ++srcCol) {
+            Piece* piece = board[srcRow][srcCol];
+            if (piece && piece->isWhitePiece() == isWhiteTurn) {
+                for (int destRow = 0; destRow < 8; ++destRow) {
+                    for (int destCol = 0; destCol < 8; ++destCol) {
+                        if (piece->isValidMove(srcRow, srcCol, destRow, destCol, board)) {
+                            Board copy(*this);
+                            try {
+                                copy.movePiece(srcRow, srcCol, destRow, destCol);
+                                if (!copy.isCheck(isWhiteTurn)) {
+                                    return true;
+                                }
+                            } catch (...) {
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
