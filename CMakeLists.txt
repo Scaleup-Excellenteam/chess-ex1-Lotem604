@@ -16,6 +16,11 @@ add_executable(Chess
     src/Rook.cpp
     src/ThreadPool.cpp
     src/AutoGameRunner.cpp
+    src/Game.cpp
+    src/Move.cpp
+    src/MoveComparator.cpp
+    
+
 )
 
 target_include_directories(Chess PRIVATE include)
