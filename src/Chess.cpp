@@ -272,6 +272,44 @@ void Chess::doTurn()
 		m_msg = "the last movement was legal \n";
 		break;
 	}
+	case CR_CASTLING:
+	{
+		excuteCastling();
+		m_turn = !m_turn;
+		m_msg = "Castling executed\n";
+		break;
+	}
+    case CR_CHECKMATE:
+    {
+        bestMove("");
+        excute();
+        m_msg = "Checkmate! " + std::string(m_turn ? "Black" : "White") + " wins.\n";
+        break;
+    }
+    case CR_PROMOTION:
+    {
+        excute();
+        m_turn = !m_turn;
+        m_msg = "Pawn promoted successfully\n";
+        break;
+    }
+    case CR_INVALID_PROMOTION:
+    {
+        m_turn = !m_turn;
+        m_msg = "Invalid piece type for promotion\n";
+        break;
+    }
+	case CR_STALEMATE:
+	{
+    excute();
+    m_msg = "Stalemate! The game ends in a draw.\n";
+    break;
+	}
+    default:
+    {
+        m_msg = "ERROR: response code does not exists.\n";
+        break;
+    }
 	}
 }
 
@@ -333,4 +371,17 @@ void Chess::setCodeResponse(int codeResponse)
 void Chess::bestMove(const string& recommendations)
 {
     m_best = recommendations;
+}
+void Chess::excuteCastling()
+{
+    int currentRow = m_input[0] - 'a';
+    int kSrcCol = m_input[1] - '1';
+    int rSrcCol = (m_input[3] - '1');
+    int kDstCol = (rSrcCol == 7) ? 6 : 2;
+    int rDstCol = (rSrcCol == 7) ? 5 : 3;
+    m_boardString[(8*currentRow) + kDstCol] = m_boardString[(8*currentRow) + kSrcCol];
+    m_boardString[(currentRow*8) + kSrcCol] = '#';
+    m_boardString[(8*currentRow) + rDstCol] = m_boardString[(8*currentRow) + rSrcCol];
+    m_boardString[(currentRow*8) + rSrcCol] = '#';
+    setPieces();
 }

@@ -34,6 +34,19 @@ int Game::processInput(const string& input) {
         return CR_INVALID_MOVE;
     }
 
+    if ((srcPiece->getSymbol() == 'K' || srcPiece->getSymbol() == 'k') && srcCol == 4 && (destCol == 0 || destCol == 7)) {
+        int rookSrcCol = destCol;
+        int rookDestCol = (destCol == 0) ? 3 : 5;
+        int kingDestCol = (destCol == 0) ? 2 : 6;
+        board.movePiece(srcRow, srcCol, srcRow, kingDestCol); // Move the king
+        board.movePiece(srcRow, rookSrcCol, srcRow, rookDestCol); // Move the rook
+
+        dynamic_cast<King*>(srcPiece)->setMoved(true);
+        dynamic_cast<Rook*>(board.getPiece(srcRow,rookDestCol))->setMoved(true);
+        switchTurn();
+        return CR_CASTLING;
+    }
+
     Piece* tempDest = destPiece;
     board.movePiece(srcRow, srcCol, destRow, destCol);
 
@@ -43,11 +56,34 @@ int Game::processInput(const string& input) {
         std::cout << "Move would cause check\n";
         return CR_SELF_CHECK;
     }
-    bool oppInCheck = board.isCheck(!turn);
-    switchTurn();
-    if (oppInCheck) {
-    return CR_OPPONENT_CHECK;
-    } else {
-    return CR_MOVE_OK;
+
+    if (Pawn* pawn = dynamic_cast<Pawn*>(srcPiece)) {
+        if (pawn->isPromotion(destRow)) {
+            std::cout << "Pawn promotion! Enter new piece type (Q/R/B/N): ";
+            char newPieceType;
+            std::cin >> newPieceType;
+            if (!board.promotePawn(destRow, destCol, newPieceType)) {
+                return CR_INVALID_PROMOTION;
+            }
+            switchTurn();
+            return CR_PROMOTION;
+        }
     }
+
+    if (board.isCheck(!turn)) {
+        if (board.isCheckmate(!turn)) {
+            std::cout << "Checkmate detected for " << (turn ? "Black" : "White") << std::endl;
+            return CR_CHECKMATE;
+        }
+        return CR_OPPONENT_CHECK;
+    }
+    if (!board.hasAnyLegalMove(!turn)) {
+        if (!board.isCheck(!turn)) {
+            std::cout << "Stalemate!\n";
+            return CR_STALEMATE;
+    }
+}
+
+    switchTurn();
+    return CR_MOVE_OK;
 }

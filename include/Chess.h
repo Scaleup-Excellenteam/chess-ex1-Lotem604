@@ -10,6 +10,12 @@
 #define CR_SELF_CHECK       31  
 #define CR_OPPONENT_CHECK   41  
 #define CR_MOVE_OK          42
+#define CR_CASTLING    		43
+#define CR_CHECKMATE        44
+#define CR_PROMOTION        45
+#define CR_INVALID_PROMOTION 46
+#define CR_STALEMATE        47
+
 
 using std::cout;
 using std::cin; 
@@ -38,6 +44,7 @@ class Chess {
 	bool isExit() const;
 	void excute();
 	void doTurn();
+	void excuteCastling();
 	
 	
 

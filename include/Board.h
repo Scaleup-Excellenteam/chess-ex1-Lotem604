@@ -24,10 +24,11 @@ public:
     Piece* const (*getBoard() const)[8] { return board; }
     bool promotePawn(int row, int col, char newPieceType);
     ~Board();
+    bool hasAnyLegalMove(bool isWhiteTurn) const;
 
     // Best move related methods
     void findBestMoves(bool isWhiteTurn, PriorityQueue<Move, MoveComparator>& pq) const;
-    //Move getBestMove(bool isWhiteTurn) const;
+    Move getBestMove(bool isWhiteTurn) const;
     Move getBestMoveWithPool(bool isWhiteTurn, ThreadPool& pool, int depth, int threshold) const;
 
 private:
