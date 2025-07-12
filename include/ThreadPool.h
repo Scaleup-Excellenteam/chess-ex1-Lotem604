@@ -8,7 +8,7 @@
 #include <functional>
 #include <atomic>
 #include <utility>
-
+#include <stdexcept>
 class ThreadPool {
 public:
     explicit ThreadPool(size_t numThreads);
